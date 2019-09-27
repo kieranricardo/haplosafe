@@ -18,7 +18,7 @@ def construct_debruijn(reads, trim_depth=500, ksize=61, cutoff=10):
     de_bruijn_graph.add_weighted_edges_from((kmer[:-1], kmer[1:], w) for kmer, w in kmer_counter.items() if (w > cutoff))
     connected_components = list(nx.weakly_connected_components(de_bruijn_graph))
 
-    assert ((len(connected_components) % 2) == 0)
+    #assert ((len(connected_components) % 2) == 0)
     assert (nx.is_directed_acyclic_graph(de_bruijn_graph))
 
     matched_components = []

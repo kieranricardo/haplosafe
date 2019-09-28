@@ -1,9 +1,9 @@
-from .path_finding import *
 from .de_bruijn import *
+from .path_finding import *
 from itertools import chain
 
 
-def predict_haplotypes(sam_filepath=None, fq_1_filepath=None, fq_2_filepath=None, trim_depth=500, ksize=61, cutoff=10):
+def predict_haplotypes(fq_1_filepath=None, fq_2_filepath=None, trim_depth=500, ksize=61, cutoff=10):
 
     if not (fq_1_filepath is None):
         with open(fq_1_filepath) as fq:
@@ -66,4 +66,36 @@ def predict_haplotypes(sam_filepath=None, fq_1_filepath=None, fq_2_filepath=None
         pred_haplo = add_path(path, ksize)
         predicted_haplotypes.append(pred_haplo)
 
+    de_bruijn_graph.clear()
+
     return predicted_haplotypes
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

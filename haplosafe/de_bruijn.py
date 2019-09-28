@@ -14,12 +14,12 @@ def construct_debruijn(reads, trim_depth=500, ksize=61, cutoff=10):
         kmer_counter.update(kmer for kmer in (read[i:(i + ksize)] for i in range(len(read) + 1 - ksize)))
         kmer_counter.update(kmer for kmer in (revcomp[i:(i + ksize)] for i in range(len(revcomp) + 1 - ksize)))
 
-    de_bruijn_graph = nx.DiGraph()
-    de_bruijn_graph.add_weighted_edges_from((kmer[:-1], kmer[1:], w) for kmer, w in kmer_counter.items() if (w > cutoff))
-    connected_components = list(nx.weakly_connected_components(de_bruijn_graph))
+    DG = nx.DiGraph()
+    DG.add_weighted_edges_from((kmer[:-1], kmer[1:], w) for kmer, w in kmer_counter.items() if (w > cutoff))
+    connected_components = list(nx.weakly_connected_components(DG))
 
     #assert ((len(connected_components) % 2) == 0)
-    assert (nx.is_directed_acyclic_graph(de_bruijn_graph))
+    assert (nx.is_directed_acyclic_graph(DG))
 
     matched_components = []
     for i, component_1 in enumerate(connected_components[:-1]):
@@ -31,12 +31,13 @@ def construct_debruijn(reads, trim_depth=500, ksize=61, cutoff=10):
                 matched_components.append((i, idx))
 
     duplicate_nodes = chain(*[connected_components[matched[0]] for matched in matched_components])
-    de_bruijn_graph.remove_nodes_from(duplicate_nodes)
+    DG.remove_nodes_from(duplicate_nodes)
     #de_bruijn_graph.remove_nodes_from(connected_components[0])
 
-    de_bruijn_graph = trim_graph(de_bruijn_graph.copy(), trim_depth=trim_depth)
-    de_bruijn_graph, attrs = collapse_chains(de_bruijn_graph.copy())
-
+    DG_trimmed = trim_graph(DG.copy(), trim_depth=trim_depth)
+    DG.clear()
+    de_bruijn_graph, attrs = collapse_chains(DG_trimmed.copy())
+    DG_trimmed.clear()
     return de_bruijn_graph
 
 

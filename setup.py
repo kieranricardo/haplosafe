@@ -1,8 +1,10 @@
 from setuptools import setup
 
+
 REQUIRES = [
     "numpy>=1.14",
-    "networkx>=2.2"
+    "networkx>=2.2",
+    "biopython>=1.74"
 ]
 
 

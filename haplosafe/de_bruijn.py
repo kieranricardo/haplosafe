@@ -6,33 +6,31 @@ from itertools import chain
 
 
 def construct_debruijn(reads, trim_depth=500, ksize=61, cutoff=10):
+    reads = list(reads)
 
     kmer_counter = Counter()
+    buff_size = 10000
+    idxs = list(range(0, len(reads) + buff_size, buff_size))
 
-    for read in reads:
-        revcomp = reverse_complement(read)
-        kmer_counter.update(kmer for kmer in (read[i:(i + ksize)] for i in range(len(read) + 1 - ksize)))
-        kmer_counter.update(kmer for kmer in (revcomp[i:(i + ksize)] for i in range(len(revcomp) + 1 - ksize)))
+    for idx_start, idx_end in zip(idxs[:-1], idxs[1:]):
+
+        kmers = []
+        for read in reads[idx_start:idx_end]:
+            kmers.extend(kmer for kmer in (read[i:(i + ksize)] for
+                                           i in range(len(read) + 1 - ksize)))
+        kmer_counter.update(kmers)
 
     DG = nx.DiGraph()
     DG.add_weighted_edges_from((kmer[:-1], kmer[1:], w) for kmer, w in kmer_counter.items() if (w > cutoff))
     connected_components = list(nx.weakly_connected_components(DG))
 
-    #assert ((len(connected_components) % 2) == 0)
+    del kmer_counter
+    del reads
+
+    assert (len(connected_components) == 2)
     assert (nx.is_directed_acyclic_graph(DG))
 
-    matched_components = []
-    for i, component_1 in enumerate(connected_components[:-1]):
-        reverse_string = ''.join(sorted(reverse_complement(kmer) for kmer in component_1))
-        for j, component_2 in enumerate(connected_components[i + 1:]):
-            idx = i + j + 1
-            forward_string = ''.join(sorted(component_2))
-            if (forward_string == reverse_string):
-                matched_components.append((i, idx))
-
-    duplicate_nodes = chain(*[connected_components[matched[0]] for matched in matched_components])
-    DG.remove_nodes_from(duplicate_nodes)
-    #de_bruijn_graph.remove_nodes_from(connected_components[0])
+    DG.remove_nodes_from(connected_components[0])
 
     DG_trimmed = trim_graph(DG.copy(), trim_depth=trim_depth)
     DG.clear()

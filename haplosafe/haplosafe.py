@@ -1,23 +1,15 @@
 from .de_bruijn import *
 from .path_finding import *
+from .utils import load_reads
 from itertools import chain
 
 
 def predict_haplotypes(fq_1_filepath=None, fq_2_filepath=None, trim_depth=500, ksize=61, cutoff=10):
 
-    if not (fq_1_filepath is None):
-        with open(fq_1_filepath) as fq:
-            reads_1 = (line.strip() for i, line in enumerate(fq.readlines()) if ((i % 4) == 1))
-
-        if not (fq_2_filepath is None):
-            with open(fq_2_filepath) as fq:
-                reads_2 = (line.strip() for i, line in enumerate(fq.readlines()) if ((i % 4) == 1))
-            reads = chain(reads_1, reads_2)
-        else:
-            reads = reads_1
-
-    else:
+    if (fq_1_filepath is None):
         raise ValueError("A fastq file must be passed.")
+
+    reads = load_reads(fq_1_filepath=fq_1_filepath, fq_2_filepath=fq_2_filepath)
 
     de_bruijn_graph = construct_debruijn(reads, trim_depth=trim_depth, ksize=ksize, cutoff=cutoff)
 

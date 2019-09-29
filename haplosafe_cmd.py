@@ -19,13 +19,14 @@ if __name__ == "__main__":
         elif arg == '-2':
             fq_2_filepath = sys.argv[i + 1]
         elif arg == '-t':
-            trim_depth = sys.argv[i + 1]
+            trim_depth = int(sys.argv[i + 1])
         elif arg == '-c':
-            cutoff = sys.argv[i + 1]
+            cutoff = int(sys.argv[i + 1])
         elif arg == '-k':
-            ksize = sys.argv[i + 1]
+            ksize = int(sys.argv[i + 1])
         elif arg == '-o':
             outpath = sys.argv[i + 1]
+
 
     haplotypes = predict_haplotypes(fq_1_filepath=fq_1_filepath, fq_2_filepath=fq_2_filepath,
                             trim_depth=trim_depth, ksize=ksize, cutoff=cutoff)

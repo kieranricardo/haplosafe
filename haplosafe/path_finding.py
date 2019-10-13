@@ -115,3 +115,4 @@ def add_path(path, ksize):
         h += node[:-(ksize-2)]
     h += node[-(ksize-2):]
     return h
+

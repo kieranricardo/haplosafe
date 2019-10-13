@@ -3,6 +3,8 @@ import sys
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+import os
+from collections import Counter
 
 
 if __name__ == "__main__":
@@ -28,8 +30,29 @@ if __name__ == "__main__":
             outpath = sys.argv[i + 1]
 
 
-    haplotypes = predict_haplotypes(fq_1_filepath=fq_1_filepath, fq_2_filepath=fq_2_filepath,
-                            trim_depth=trim_depth, ksize=ksize, cutoff=cutoff)
+
+    haplotypes, haplo_freqs = predict_haplotypes(
+        fq_1_filepath=fq_1_filepath,
+        fq_2_filepath=fq_2_filepath,
+        trim_depth=trim_depth,
+        ksize=ksize,
+        cutoff=cutoff
+    )
+
+    seq_fp = os.path.split(fq_1_filepath)[0] + '/multi_seqgen.out'
+
+    with open(seq_fp) as fasta:
+        lines = fasta.readlines()
+    true_haplotypes = [line.split()[1] for line in lines[1:]]
+
+    true_haplo_freqs = Counter(true_haplotypes).values()
 
     sequences = [SeqRecord(Seq(haplo), str(i)) for i, haplo in enumerate(haplotypes)]
     SeqIO.write(sequences, outpath, 'fasta')
+
+    freq_path = outpath + ".freqs.txt"
+    with open(freq_path, 'w') as freq_file:
+        freq_file.writelines(
+            [','.join(haplo_freqs.astype(str)),
+             '\n',
+             ','.join(map(str, true_haplo_freqs))])

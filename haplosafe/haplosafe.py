@@ -4,14 +4,21 @@ from .utils import load_reads
 from itertools import chain
 
 
-def predict_haplotypes(fq_1_filepath=None, fq_2_filepath=None, trim_depth=500, ksize=61, cutoff=10):
+def predict_haplotypes(
+        fq_1_filepath=None,
+        fq_2_filepath=None,
+        reads=None, de_bruijn_graph=None,
+        trim_depth=500,
+        ksize=61, cutoff=10):
 
-    if (fq_1_filepath is None):
-        raise ValueError("A fastq file must be passed.")
+    if de_bruijn_graph is None:
+        if reads is None:
+            if (fq_1_filepath is None):
+                raise ValueError("A fastq file must be passed.")
 
-    reads = load_reads(fq_1_filepath=fq_1_filepath, fq_2_filepath=fq_2_filepath)
+            reads = load_reads(fq_1_filepath=fq_1_filepath, fq_2_filepath=fq_2_filepath)
 
-    de_bruijn_graph = construct_debruijn(reads, trim_depth=trim_depth, ksize=ksize, cutoff=cutoff)
+        de_bruijn_graph = construct_debruijn(reads, trim_depth=trim_depth, ksize=ksize, cutoff=cutoff)
 
     ordered_antichains, max_ac_card = get_antichains(de_bruijn_graph)
 
@@ -60,7 +67,7 @@ def predict_haplotypes(fq_1_filepath=None, fq_2_filepath=None, trim_depth=500, k
 
     de_bruijn_graph.clear()
 
-    return predicted_haplotypes
+    return predicted_haplotypes, haplo_freqs
 
 
 

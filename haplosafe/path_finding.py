@@ -47,7 +47,7 @@ def get_subgraph(nodes, g):
     node_counter = 0
 
     # TODO: check if only one iteration is needed
-    # TODO: check how the false path is being created --> tip??!?!?!?!?!!?!?!?!?
+
     while len(sg.nodes) > node_counter:
 
         leaves = [node for node in sg.nodes if (len(list(sg.succ[node])) == 0)]

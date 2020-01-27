@@ -18,54 +18,10 @@ def predict_haplotypes(
 
             reads = load_reads(fq_1_filepath=fq_1_filepath, fq_2_filepath=fq_2_filepath)
 
-        de_bruijn_graph = construct_debruijn(reads, trim_depth=trim_depth, ksize=ksize, cutoff=cutoff)
+        de_bruijn_graph = build_de_bruijn(reads, trim_depth=trim_depth, ksize=ksize, cutoff=cutoff)
+        del reads
 
-    ordered_antichains, max_ac_card = get_antichains(de_bruijn_graph)
-
-    graph_decompositions = decompose_graph(de_bruijn_graph, ordered_antichains)
-
-    haplo_freqs = estimate_frequencies(de_bruijn_graph, ordered_antichains)
-
-    potential_haplotypes = [[] for i in range(max_ac_card)]
-    all_nodes_classified = [[] for i in range(max_ac_card)]
-
-    for nodes, roots, leaves in graph_decompositions:
-        subgraph = de_bruijn_graph.subgraph(nodes)
-
-        roots = sorted(roots, key=lambda n: de_bruijn_graph.edges[(n, list(de_bruijn_graph.succ[n])[0])]['weight'])
-        leaves = sorted(leaves, key=lambda n: de_bruijn_graph.edges[(list(de_bruijn_graph.pred[n])[0], n)]['weight'])
-
-        labelled_nodes = label_nodes(subgraph, de_bruijn_graph, roots, leaves, haplo_freqs, max_ac_card)
-
-        top_sort = list(nx.algorithms.dag.topological_sort(subgraph))
-        subgraph_haplotypes = [[] for i in range(max_ac_card)]
-
-        for k, node_list in enumerate(labelled_nodes):
-            node_list.append(roots[k])
-            node_list.append(leaves[k])
-            all_nodes_classified[k].extend(node_list)
-            node_list = sorted(set(node_list), key=lambda n: top_sort.index(n))
-
-            for i in range(len(node_list) - 1):
-                new_paths = list(nx.all_simple_paths(subgraph, node_list[i], node_list[i + 1]))
-                subgraph_haplotypes[k].append(new_paths)
-
-        subgraph_paths = fit_haplo(subgraph, subgraph_haplotypes, haplo_freqs, max_ac_card)
-        for k in range(max_ac_card):
-            potential_haplotypes[k].append(subgraph_paths[k])
-
-    predicted_haplotypes = []
-
-    for i, haplo in enumerate(potential_haplotypes):
-        path = []
-        for sub_path in haplo:
-            path += sub_path[:-1]
-        path.append(sub_path[-1])
-
-        pred_haplo = add_path(path, ksize)
-        predicted_haplotypes.append(pred_haplo)
-
-    de_bruijn_graph.clear()
+    raise NotImplementedError
 
     return predicted_haplotypes, haplo_freqs
 

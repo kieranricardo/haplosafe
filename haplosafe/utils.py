@@ -19,7 +19,7 @@ def reverse_complement(read):
     return revcomp
 
 
-def load_reads(fq_1_filepath=None, fq_2_filepath = None):
+def load_reads(fq_1_filepath=None, fq_2_filepath=None):
 
     with open(fq_1_filepath) as fq:
         reads_1 = (line.strip() for i, line in enumerate(fq.readlines()) if ((i % 4) == 1))

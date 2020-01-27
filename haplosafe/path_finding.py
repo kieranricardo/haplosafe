@@ -1,118 +1,145 @@
 import networkx as nx
 import numpy as np
-from itertools import product
+from scipy.optimize import nnls
+from .de_bruijn import get_leaves, get_roots
 
 
-def get_antichains(DG):
-    antichains = list(nx.algorithms.dag.antichains(DG))
-    max_ac_card = max(len(ac) for ac in antichains)
+def add_path(path, ksize, DG):
+    haplo = ''
+    for edge in zip(path[:-1], path[1:]):
+        contig = DG.edges[edge]['kmer']
+        if haplo == '':
+            haplo = contig
+        else:
+            idx = haplo.index(contig[:ksize-1])
+            haplo = haplo[:idx] + contig
 
-    decomposition_antichains = [ac for ac in antichains if (len(ac) == max_ac_card)]
-
-    ordered_antichains = []
-    antichains_copy = decomposition_antichains.copy()
-
-    while (len(antichains_copy) > 0):
-        ordered_antichains.append(antichains_copy[-1])
-        antichains_copy = [ac for ac in antichains_copy
-                           if not any(a in ordered_antichains[-1] for a in ac)]
-
-    return ordered_antichains, max_ac_card
+    return haplo
 
 
-def estimate_frequencies(DG, ordered_antichains):
-    max_ac_counts = []
-    for antichain in ordered_antichains:
-        try:
-            max_ac_counts.append(sorted(np.round(DG.edges[(n, list(DG.succ[n])[0])]['weight']) for n in antichain))
-        except IndexError:
-            max_ac_counts.append(sorted(np.round(DG.edges[(list(DG.pred[n])[0], n)]['weight']) for n in antichain))
+def find_source_sink_paths(DAG, start_nodes=None, max_len=np.inf):
 
-    max_ac_counts = np.vstack(max_ac_counts)
+    if start_nodes is None:
+        start_nodes = get_roots(DAG)
 
-    haplo_freqs = max_ac_counts.mean(0)
+    paths = [[node] for node in start_nodes]
 
-    return haplo_freqs
+    ii = 0
 
+    while ii < len(paths):
+        path = paths[ii]
+        next_nodes = list(DAG.succ[path[-1]])
 
-def fit_haplo(sub_graph, subgraph_haplotypes, haplo_freqs, m_ac):
-    edge_list = list(sub_graph.edges)
-    weights = np.array(list(([e[1]['weight'] for e in sub_graph.edges.items()])))
+        while (len(next_nodes)) > 0 and (len(path) < max_len):
+            paths.extend(path + [node, ] for node in next_nodes[1:])
+            path.append(next_nodes[0])
 
-    haplo_vecs = [[] for x in subgraph_haplotypes]
-    paths = [[] for i in range(m_ac)]
-    for i, haplotype in enumerate(subgraph_haplotypes):
-        for path in list(product(*haplotype)):
-            path_nodes = []
-            for sub_path_nodes in path:
-                path_nodes += sub_path_nodes[:-1]
-            path_nodes.append(sub_path_nodes[-1])
-            paths[i].append(path_nodes)
+            next_nodes = list(DAG.succ[path[-1]])
 
-    for i, haplotype_paths in enumerate(paths):
-        for path in haplotype_paths:
-            haplo_vec = np.zeros(weights.shape)
-            for j, node in enumerate(path[:-1]):
-                try:
-                    idx = edge_list.index((node, path[j + 1]))
-                    haplo_vec[idx] = 1
-                except ValueError:
-                    pass
-            haplo_vecs[i].append(haplo_vec)
+        ii += 1
 
-    combos = list(product(*[range(len(haplo_vec)) for haplo_vec in haplo_vecs]))
-    As = [np.vstack([haplo_vecs[i][combo[i]] for i in range(m_ac)]) for combo in combos]
-    combos = [combo for combo, A in zip(combos, As) if (A.sum(0).all())]
-    As = [A for A in As if (A.sum(0).all())]
-    As = np.dstack(As).transpose()
-    errors = (((np.dot(As, haplo_freqs) - weights) ** 2) / weights).sum(-1)
-    combo = combos[np.argmin(errors)]
-    return [paths[i][combo[i]] for i in range(m_ac)]
+    return paths
 
 
-def label_nodes(subgraph, DG, roots, leaves, haplo_freqs, max_ac_card):
-    labelled_nodes = [[] for i in range(max_ac_card)]
+def get_subgraph(nodes, g):
 
-    antichains = [ac for ac in nx.algorithms.dag.antichains(subgraph) if (len(ac) == (max_ac_card - 1))]
+    sg = g.subgraph(nodes)
+    node_counter = 0
 
-    for antichain in antichains:
+    # TODO: check if only one iteration is needed
+    # TODO: check how the false path is being created --> tip??!?!?!?!?!!?!?!?!?
+    while len(sg.nodes) > node_counter:
 
-        weight_sums = np.array(list(np.round(sum(DG.edges[(n, n_)]['weight'] for n_ in DG.succ[n])) for n in antichain))
-        idxs = np.argsort(weight_sums)
+        leaves = [node for node in sg.nodes if (len(list(sg.succ[node])) == 0)]
+        roots = [node for node in sg.nodes if (len(list(sg.pred[node])) == 0)]
 
-        missing_weights = np.array([])
-        missing_idxs = []
-        is_good_fit = []
-        for i, weight in enumerate(haplo_freqs):
-            delta_w = np.abs(weight_sums - weight)
-            is_close = (delta_w < (1.5 * np.sqrt(weight))) * (delta_w < (1.5 * np.sqrt(weight_sums)))
-            is_good_fit.append(is_close)
+        nodes_to_add = []
+        for node in sg.nodes:
+            if not node in leaves:
+                nodes_to_add.extend(g.succ[node])
+            if not node in roots:
+                nodes_to_add.extend(g.pred[node])
+                #print("backtracked!")
 
-            if (is_close.sum() == 0):
-                missing_weights = np.append(missing_weights, weight)
-                missing_idxs.append(i)
+        node_counter = len(sg.nodes)
+        sg = g.subgraph(list(sg.nodes) + nodes_to_add)
 
-        if missing_weights.shape[0] == 2:
-            weight = missing_weights.sum()
-            delta_w = np.abs(weight_sums - weight)
-            is_close = (delta_w < (1.5 * np.sqrt(weight))) * (delta_w < (1.5 * np.sqrt(weight_sums)))
-            is_good_fit[missing_idxs[0]] = is_close
-            is_good_fit[missing_idxs[1]] = is_close
-        if missing_weights.shape[0] > 2:
-            continue
-
-        is_good_fit = (np.vstack(is_good_fit))
-        for i, row in enumerate(is_good_fit):
-            if row.sum() == 1:
-                if is_good_fit[:, row].sum() == 1:
-                    labelled_nodes[i].append(antichain[np.where(row)[0][0]])
-    return labelled_nodes
+    return sg
 
 
-def add_path(path, ksize):
-    h = ''
-    for i, node in enumerate(path):
-        h += node[:-(ksize-2)]
-    h += node[-(ksize-2):]
-    return h
+def get_path_matrix(g):
 
+    all_paths = find_source_sink_paths(g)
+
+    edge_list = list(g.edges)
+    edge_list_lookup = dict(zip(edge_list, range(len(edge_list))))
+
+    weights = np.array(list(([e[1]['weight'] for e in g.edges.items()])))
+    A = np.zeros((len(edge_list), len(all_paths)))
+
+    for i in range(len(all_paths)):
+        path_idxs = [edge_list_lookup[(n1, n2)] for n1, n2 in
+                     zip(all_paths[i][:-1], all_paths[i][1:])]
+        A[path_idxs, i] = 1
+
+    return A, weights, all_paths
+
+
+# code to iterate this procedure
+
+
+def solve_path_matrix(A, weights, all_paths, cutoff, g, ksize):
+
+    fnnl, res = nnls(A, weights)
+
+    predicted_paths = [all_paths[i] for i in np.where(fnnl > cutoff)[0]]
+    predicted_haplotypes = [add_path(path, ksize, g) for path in predicted_paths]
+
+    pred_freqs = fnnl[fnnl > cutoff]
+
+    f_sum = pred_freqs.sum()
+    pred_freqs = pred_freqs / f_sum
+
+    return predicted_paths, predicted_haplotypes, pred_freqs, f_sum
+
+
+def merge_bubbles(g, cutoff, ksize, window_size=50):
+
+    start_nodes = get_roots(g)
+    leaves = get_leaves(g)
+
+    new_edges = []
+    freq_sums = []
+
+    while (start_nodes != leaves):
+
+        paths = find_source_sink_paths(
+            g, max_len=window_size, start_nodes=start_nodes
+        )
+
+        subgraph_nodes = sum(paths, [])
+        subgraph = get_subgraph(subgraph_nodes, g)
+
+        A, weights, all_paths = get_path_matrix(subgraph)
+
+        # note g can also be subgraph
+        predicted_paths, predicted_haplotypes, pred_freqs, f_sum = solve_path_matrix(
+            A, weights, all_paths, cutoff, g, ksize=ksize
+        )
+
+        new_edges.extend(
+            (path[0], path[-1], {"weight": freq, "kmer": h})
+            for path, freq, h in
+            zip(predicted_paths, pred_freqs, predicted_haplotypes)
+        )
+
+        freq_sums.append(f_sum)
+        # new roots are old leaves
+        start_nodes = get_leaves(subgraph)
+
+    new_graph =  nx.DiGraph() # nx.MultiDiGraph()
+
+    new_graph.add_edges_from(new_edges)
+    new_cutoff = cutoff / np.mean(freq_sums)
+
+    return new_graph, new_cutoff, new_edges

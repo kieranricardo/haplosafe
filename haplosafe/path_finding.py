@@ -159,6 +159,9 @@ def merge_bubbles(g, cutoff, ksize, window_size=50):
         subgraph_nodes = set(sum((sum((e[:2] for e in p), ()) for p in paths), ()))
         subgraph = get_subgraph(subgraph_nodes, g)
 
+        if len(subgraph.nodes) == 0:
+            break
+
         A, weights, all_paths = get_path_matrix(subgraph)
 
         # note g can also be subgraph
@@ -167,7 +170,7 @@ def merge_bubbles(g, cutoff, ksize, window_size=50):
         )
 
         new_edges.extend(
-            (path[0], path[-1], {"weight": freq, "kmer": h})
+            (path[0][0], path[-1][1], {"weight": freq, "kmer": h})
             for path, freq, h in
             zip(predicted_paths, pred_freqs, predicted_haplotypes)
         )

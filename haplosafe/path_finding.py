@@ -6,7 +6,7 @@ from .de_bruijn import get_leaves, get_roots
 
 def add_path(path, ksize, DG):
     haplo = ''
-    for edge in zip(path[:-1], path[1:]):
+    for edge in path:
         contig = DG.edges[edge]['kmer']
         if haplo == '':
             haplo = contig
@@ -22,23 +22,63 @@ def find_source_sink_paths(DAG, start_nodes=None, max_len=np.inf):
     if start_nodes is None:
         start_nodes = get_roots(DAG)
 
-    paths = [[node] for node in start_nodes]
+    paths = []
+    for node in start_nodes:
+        for nbr in DAG[node]:
+            for edge_idx in DAG[node][nbr]:
+                edge = (node, nbr, edge_idx)
+                paths.append([edge,])
 
     ii = 0
 
     while ii < len(paths):
         path = paths[ii]
-        next_nodes = list(DAG.succ[path[-1]])
 
-        while (len(next_nodes)) > 0 and (len(path) < max_len):
-            paths.extend(path + [node, ] for node in next_nodes[1:])
-            path.append(next_nodes[0])
+        parent_node = path[-1][1]
+        child_nodes = list(DAG[parent_node])
 
-            next_nodes = list(DAG.succ[path[-1]])
+        while (len(child_nodes)) > 0 and (len(path) < max_len):
+            first_flag = True
+
+            for child_node in child_nodes:
+                for edge_idx in DAG[parent_node][child_node]:
+                    edge = (parent_node, child_node, edge_idx)
+
+                    if first_flag:
+                        path.append(edge)
+                        first_flag = False
+                    else:
+                        paths.append(path[:-1] + [edge, ])
+
+            parent_node = path[-1][1]
+            child_nodes = list(DAG[parent_node])
 
         ii += 1
 
     return paths
+
+# def find_source_sink_paths(DAG, start_nodes=None, max_len=np.inf):
+#
+#     if start_nodes is None:
+#         start_nodes = get_roots(DAG)
+#
+#     paths = [[node] for node in start_nodes]
+#
+#     ii = 0
+#
+#     while ii < len(paths):
+#         path = paths[ii]
+#         next_nodes = list(DAG.succ[path[-1]])
+#
+#         while (len(next_nodes)) > 0 and (len(path) < max_len):
+#             paths.extend(path + [node, ] for node in next_nodes[1:])
+#             path.append(next_nodes[0])
+#
+#             next_nodes = list(DAG.succ[path[-1]])
+#
+#         ii += 1
+#
+#     return paths
 
 
 def get_subgraph(nodes, g):
@@ -78,8 +118,7 @@ def get_path_matrix(g):
     A = np.zeros((len(edge_list), len(all_paths)))
 
     for i in range(len(all_paths)):
-        path_idxs = [edge_list_lookup[(n1, n2)] for n1, n2 in
-                     zip(all_paths[i][:-1], all_paths[i][1:])]
+        path_idxs = [edge_list_lookup[edge] for edge in all_paths[i]]
         A[path_idxs, i] = 1
 
     return A, weights, all_paths
@@ -117,7 +156,7 @@ def merge_bubbles(g, cutoff, ksize, window_size=50):
             g, max_len=window_size, start_nodes=start_nodes
         )
 
-        subgraph_nodes = sum(paths, [])
+        subgraph_nodes = set(sum((sum((e[:2] for e in p), ()) for p in paths), ()))
         subgraph = get_subgraph(subgraph_nodes, g)
 
         A, weights, all_paths = get_path_matrix(subgraph)
@@ -137,7 +176,7 @@ def merge_bubbles(g, cutoff, ksize, window_size=50):
         # new roots are old leaves
         start_nodes = get_leaves(subgraph)
 
-    new_graph =  nx.DiGraph() # nx.MultiDiGraph()
+    new_graph = nx.MultiDiGraph()
 
     new_graph.add_edges_from(new_edges)
     new_cutoff = cutoff / np.mean(freq_sums)

@@ -2,7 +2,7 @@ import networkx as nx
 from collections import Counter
 
 
-def build_de_bruijn(reads, ksize=61, cutoff=10, collapse=True):
+def build_de_bruijn(reads, ksize=61, cutoff=10):
 
     kmer_counter = count_kmers(reads, ksize=ksize)
 
@@ -50,31 +50,6 @@ def count_kmers(reads, ksize=61):
         kmer_counter.update(kmers)
 
     return kmer_counter
-
-
-# def collapse_chains(g, ksize):
-#     to_delete = []
-#     is_chain = [node for node in g.nodes if ((len(g.succ[node]) == 1) and (len(g.pred[node]) == 1))]
-#     chains = g.subgraph(is_chain)
-#
-#     components = list(nx.components.weakly_connected_components(chains))
-#     components = [chains.subgraph(component) for component in components]
-#     for component in components:
-#
-#         nodes = list(component.nodes)
-#         ordered_nodes = list(filter(lambda n: is_start(n, component), nodes))[0]
-#
-#         while len(component.succ[ordered_nodes[-1]]) == 1:
-#             ordered_nodes.append(list(component.succ[ordered_nodes[-1]][0]))
-#
-#         substring = add_path(ordered_nodes, ksize, component)
-#         g.add_edge((ordered_nodes[0], ordered_nodes[-1], {"weight": 0.0, "kmer": substring}))
-#
-#         to_delete.extend(ordered_nodes[1:-1])
-#
-#     g.remove_nodes_from(to_delete)
-#
-#     return g
 
 
 def get_leaves(DG):

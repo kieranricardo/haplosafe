@@ -22,89 +22,82 @@ def find_source_sink_paths(DAG, start_nodes=None, max_len=np.inf):
     if start_nodes is None:
         start_nodes = get_roots(DAG)
 
-    paths = []
-    for node in start_nodes:
-        for nbr in DAG[node]:
-            for edge_idx in DAG[node][nbr]:
-                edge = (node, nbr, edge_idx)
-                paths.append([edge,])
+    paths = [
+        [(parent_node, child_node, edge_idx)]
+        for parent_node in start_nodes
+        for child_node in DAG[parent_node]
+        for edge_idx in DAG[parent_node][child_node]
+    ]
 
     ii = 0
 
     while ii < len(paths):
         path = paths[ii]
 
-        parent_node = path[-1][1]
-        child_nodes = list(DAG[parent_node])
-
-        while (len(child_nodes)) > 0 and (len(path) < max_len):
-            first_flag = True
-
-            for child_node in child_nodes:
-                for edge_idx in DAG[parent_node][child_node]:
-                    edge = (parent_node, child_node, edge_idx)
-
-                    if first_flag:
-                        path.append(edge)
-                        first_flag = False
-                    else:
-                        paths.append(path[:-1] + [edge, ])
+        while len(path) < max_len:
 
             parent_node = path[-1][1]
-            child_nodes = list(DAG[parent_node])
+
+            edges = [
+                (parent_node, child_node, edge_idx)
+                for child_node in DAG[parent_node]
+                for edge_idx in DAG[parent_node][child_node]
+            ]
+
+            if len(edges) == 0:
+                break
+            else:
+                path.append(edges[0])
+                paths.extend(path[:-1] + [edge,] for edge in edges[1:])
 
         ii += 1
 
     return paths
 
-# def find_source_sink_paths(DAG, start_nodes=None, max_len=np.inf):
-#
-#     if start_nodes is None:
-#         start_nodes = get_roots(DAG)
-#
-#     paths = [[node] for node in start_nodes]
-#
-#     ii = 0
-#
-#     while ii < len(paths):
-#         path = paths[ii]
-#         next_nodes = list(DAG.succ[path[-1]])
-#
-#         while (len(next_nodes)) > 0 and (len(path) < max_len):
-#             paths.extend(path + [node, ] for node in next_nodes[1:])
-#             path.append(next_nodes[0])
-#
-#             next_nodes = list(DAG.succ[path[-1]])
-#
-#         ii += 1
-#
-#     return paths
+
+def get_subgraph(graph, idx, max_idx, node_idx_pairs):
+    """
+    Finds a suitable subgraph - one in which the roots and leaves are maximal antichains of the graph.
+    """
+
+    while True:
+
+        nodes = [
+            node for i, node in node_idx_pairs
+            if idx <= i < max_idx
+        ]
+
+        subgraph = graph.subgraph(nodes)
+        leaves = get_leaves(subgraph)
+
+        nodes_to_add = set(
+            neigh
+            for node in subgraph.nodes if node not in leaves
+            for neigh in graph.succ[node] if neigh not in subgraph.nodes
+        )
+
+        if len(nodes_to_add) == 0:
+            nodes = nodes + [neigh for node in get_roots(subgraph) for neigh in graph.pred[node]]
+            subgraph = graph.subgraph(nodes)
+            return subgraph, max_idx
+        else:
+            max_idx = max(i for i, node in node_idx_pairs if node in nodes_to_add) + 1
 
 
-def get_subgraph(nodes, g):
+def subgraph_check(graph, subgraph):
 
-    sg = g.subgraph(nodes)
-    node_counter = 0
+    roots = get_roots(subgraph)
 
-    # TODO: check if only one iteration is needed
+    nodes_to_add = [
+        neigh
+        for node in subgraph.nodes if node not in roots
+        for neigh in graph.pred[node] if neigh not in subgraph.nodes
+    ]
 
-    while len(sg.nodes) > node_counter:
+    if len(nodes_to_add) != 0:
 
-        leaves = [node for node in sg.nodes if (len(list(sg.succ[node])) == 0)]
-        roots = [node for node in sg.nodes if (len(list(sg.pred[node])) == 0)]
-
-        nodes_to_add = []
-        for node in sg.nodes:
-            if not node in leaves:
-                nodes_to_add.extend(g.succ[node])
-            if not node in roots:
-                nodes_to_add.extend(g.pred[node])
-                #print("backtracked!")
-
-        node_counter = len(sg.nodes)
-        sg = g.subgraph(list(sg.nodes) + nodes_to_add)
-
-    return sg
+        print(" ".join(str(len(graph.succ[node])) for node in nodes_to_add))
+        raise RuntimeError
 
 
 def get_path_matrix(g):
@@ -124,13 +117,9 @@ def get_path_matrix(g):
     return A, weights, all_paths
 
 
-# code to iterate this procedure
-
-
 def solve_path_matrix(A, weights, all_paths, cutoff, g, ksize):
 
     fnnl, res = nnls(A, weights)
-
     predicted_paths = [all_paths[i] for i in np.where(fnnl > cutoff)[0]]
     predicted_haplotypes = [add_path(path, ksize, g) for path in predicted_paths]
 
@@ -142,46 +131,75 @@ def solve_path_matrix(A, weights, all_paths, cutoff, g, ksize):
     return predicted_paths, predicted_haplotypes, pred_freqs, f_sum
 
 
-def merge_bubbles(g, cutoff, ksize, window_size=50):
+def merge_bubbles(graph, cutoff, ksize, window_size=50):
 
-    start_nodes = get_roots(g)
-    leaves = get_leaves(g)
-
-    new_edges = []
+    edges = []
     freq_sums = []
 
-    while (start_nodes != leaves):
+    node_dists = max_dists(graph, forward=False)
+    max_dist = max(dist for dist in node_dists.values())
+    node_idx_pairs = [(max_dist-dist, node) for node, dist in node_dists.items()]
 
-        paths = find_source_sink_paths(
-            g, max_len=window_size, start_nodes=start_nodes
-        )
+    idx = 0
+    max_idx = max(idx for idx, _ in node_idx_pairs)
+    while idx <= max_idx:
 
-        subgraph_nodes = set(sum((sum((e[:2] for e in p), ()) for p in paths), ()))
-        subgraph = get_subgraph(subgraph_nodes, g)
-
-        if len(subgraph.nodes) == 0:
-            break
+        subgraph, idx = get_subgraph(graph, idx, idx+window_size, node_idx_pairs)
+        subgraph_check(graph, subgraph)
 
         A, weights, all_paths = get_path_matrix(subgraph)
 
         # note g can also be subgraph
         predicted_paths, predicted_haplotypes, pred_freqs, f_sum = solve_path_matrix(
-            A, weights, all_paths, cutoff, g, ksize=ksize
+            A, weights, all_paths, cutoff, graph, ksize=ksize
         )
 
-        new_edges.extend(
+        edges.extend(
             (path[0][0], path[-1][1], {"weight": freq, "kmer": h})
             for path, freq, h in
             zip(predicted_paths, pred_freqs, predicted_haplotypes)
         )
 
         freq_sums.append(f_sum)
-        # new roots are old leaves
-        start_nodes = get_leaves(subgraph)
 
     new_graph = nx.MultiDiGraph()
 
-    new_graph.add_edges_from(new_edges)
+    new_graph.add_edges_from(edges)
     new_cutoff = cutoff / np.mean(freq_sums)
 
-    return new_graph, new_cutoff, new_edges
+    return new_graph, new_cutoff, edges
+
+
+def max_dists(graph, forward=True):
+    """
+    Find the max distance from a node to either a source node or a sink node.
+
+    Args:
+        graph (nx.MultiDiGraph): the graph to traverse
+        forward (bool): whether to go forward or backward through the graph
+    Returns:
+        node_dists (dict): a dictionary of (node, max_dist) pairs
+    """
+
+    if forward:
+        next_nodes_lookup = graph.succ
+        node_order = list(nx.topological_sort(graph))
+        start_nodes = get_roots(graph)
+    else:
+        next_nodes_lookup = graph.pred
+        node_order = list(nx.topological_sort(graph))[-1::-1]
+        start_nodes = get_leaves(graph)
+
+    node_dists = dict((node, 0) for node in graph.nodes)
+
+    for start_node in start_nodes:
+
+        node_dists[start_node] = 1
+        idx = node_order.index(start_node)
+
+        for node in node_order[idx:]:
+            if node_dists[node] > 0:
+                for next_node in next_nodes_lookup[node]:
+                    node_dists[next_node] = max(node_dists[next_node], node_dists[node] + 1)
+
+    return node_dists

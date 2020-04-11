@@ -5,13 +5,13 @@ from .de_bruijn import get_leaves, get_roots
 
 
 def add_path(path, ksize, DG):
-    haplo = ''
+    haplo = ""
     for edge in path:
-        contig = DG.edges[edge]['kmer']
-        if haplo == '':
+        contig = DG.edges[edge]["kmer"]
+        if haplo == "":
             haplo = contig
         else:
-            idx = haplo.index(contig[:ksize-1])
+            idx = haplo.index(contig[: ksize - 1])
             haplo = haplo[:idx] + contig
 
     return haplo
@@ -62,22 +62,23 @@ def get_subgraph(graph, idx, max_idx, node_idx_pairs):
 
     while True:
 
-        nodes = [
-            node for i, node in node_idx_pairs
-            if idx <= i < max_idx
-        ]
+        nodes = [node for i, node in node_idx_pairs if idx <= i < max_idx]
 
         subgraph = graph.subgraph(nodes)
         leaves = get_leaves(subgraph)
 
         nodes_to_add = set(
             neigh
-            for node in subgraph.nodes if node not in leaves
-            for neigh in graph.succ[node] if neigh not in subgraph.nodes
+            for node in subgraph.nodes
+            if node not in leaves
+            for neigh in graph.succ[node]
+            if neigh not in subgraph.nodes
         )
 
         if len(nodes_to_add) == 0:
-            nodes = nodes + [neigh for node in get_roots(subgraph) for neigh in graph.pred[node]]
+            nodes = nodes + [
+                neigh for node in get_roots(subgraph) for neigh in graph.pred[node]
+            ]
             subgraph = graph.subgraph(nodes)
             return subgraph, max_idx
         else:
@@ -90,8 +91,10 @@ def subgraph_check(graph, subgraph):
 
     nodes_to_add = [
         neigh
-        for node in subgraph.nodes if node not in roots
-        for neigh in graph.pred[node] if neigh not in subgraph.nodes
+        for node in subgraph.nodes
+        if node not in roots
+        for neigh in graph.pred[node]
+        if neigh not in subgraph.nodes
     ]
 
     if len(nodes_to_add) != 0:
@@ -107,7 +110,7 @@ def get_path_matrix(g):
     edge_list = list(g.edges)
     edge_list_lookup = dict(zip(edge_list, range(len(edge_list))))
 
-    weights = np.array(list(([e[1]['weight'] for e in g.edges.items()])))
+    weights = np.array(list(([e[1]["weight"] for e in g.edges.items()])))
     A = np.zeros((len(edge_list), len(all_paths)))
 
     for i in range(len(all_paths)):
@@ -138,13 +141,13 @@ def merge_bubbles(graph, cutoff, ksize, window_size=50):
 
     node_dists = max_dists(graph, forward=False)
     max_dist = max(dist for dist in node_dists.values())
-    node_idx_pairs = [(max_dist-dist, node) for node, dist in node_dists.items()]
+    node_idx_pairs = [(max_dist - dist, node) for node, dist in node_dists.items()]
 
     idx = 0
     max_idx = max(idx for idx, _ in node_idx_pairs)
     while idx <= max_idx:
 
-        subgraph, idx = get_subgraph(graph, idx, idx+window_size, node_idx_pairs)
+        subgraph, idx = get_subgraph(graph, idx, idx + window_size, node_idx_pairs)
         subgraph_check(graph, subgraph)
 
         A, weights, all_paths = get_path_matrix(subgraph)
@@ -156,8 +159,7 @@ def merge_bubbles(graph, cutoff, ksize, window_size=50):
 
         edges.extend(
             (path[0][0], path[-1][1], {"weight": freq, "kmer": h})
-            for path, freq, h in
-            zip(predicted_paths, pred_freqs, predicted_haplotypes)
+            for path, freq, h in zip(predicted_paths, pred_freqs, predicted_haplotypes)
         )
 
         freq_sums.append(f_sum)
@@ -167,7 +169,7 @@ def merge_bubbles(graph, cutoff, ksize, window_size=50):
     new_graph.add_edges_from(edges)
     new_cutoff = cutoff / np.mean(freq_sums)
 
-    return new_graph, new_cutoff, edges
+    return new_graph, new_cutoff
 
 
 def max_dists(graph, forward=True):
@@ -200,6 +202,8 @@ def max_dists(graph, forward=True):
         for node in node_order[idx:]:
             if node_dists[node] > 0:
                 for next_node in next_nodes_lookup[node]:
-                    node_dists[next_node] = max(node_dists[next_node], node_dists[node] + 1)
+                    node_dists[next_node] = max(
+                        node_dists[next_node], node_dists[node] + 1
+                    )
 
     return node_dists

@@ -10,7 +10,6 @@ def graph():
 
 
 def test_count_kmers():
-
     def string_func(i):
         if i % 2 == 0:
             return "abcdefg"

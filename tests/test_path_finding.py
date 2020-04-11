@@ -6,17 +6,17 @@ from haplosafe.de_bruijn import build_de_bruijn
 
 def random_graph(ksize):
 
-    base_haplo = np.random.choice(["A", "C", "G", "T"], size=20*ksize)
+    base_haplo = np.random.choice(["A", "C", "G", "T"], size=20 * ksize)
     haplotypes = [base_haplo.copy() for _ in range(5)]
 
     for _ in range(20):
-        idx = np.random.randint(0, len(base_haplo)-1)
+        idx = np.random.randint(0, len(base_haplo) - 1)
 
-        for hidx in np.random.randint(0, len(haplotypes)-1, size=2):
+        for hidx in np.random.randint(0, len(haplotypes) - 1, size=2):
             haplo = haplotypes[hidx]
             haplo[idx] = np.random.choice(["A", "C", "G", "T"])
 
-    reads = [''.join(haplo) for haplo in haplotypes]
+    reads = ["".join(haplo) for haplo in haplotypes]
 
     g = build_de_bruijn(reads, ksize=ksize, cutoff=0)
     return g
@@ -55,17 +55,19 @@ def test_merge_bubbles_1():
 
     edges = []
 
-    for h in [base_haplo[:2*ksize], base_haplo[2*ksize-ksize:]]:
+    for h in [base_haplo[: 2 * ksize], base_haplo[2 * ksize - ksize :]]:
 
         nodes = ["".join(h[:ksize]), "".join(h[-ksize:])]
 
         edited_kmer = h.copy()
-        edited_kmer[ksize+1] = 'A' if edited_kmer[ksize+1] != 'A' else 'T'
+        edited_kmer[ksize + 1] = "A" if edited_kmer[ksize + 1] != "A" else "T"
 
-        edges.extend([
-            (nodes[0], nodes[1], {"weight": 1, "kmer": "".join(h)}),
-            (nodes[0], nodes[1], {"weight": 1, "kmer": "".join(edited_kmer)}),
-        ])
+        edges.extend(
+            [
+                (nodes[0], nodes[1], {"weight": 1, "kmer": "".join(h)}),
+                (nodes[0], nodes[1], {"weight": 1, "kmer": "".join(edited_kmer)}),
+            ]
+        )
 
     assert edges[0][1] == edges[-1][0]
     g = nx.MultiDiGraph()

@@ -1,56 +1,33 @@
-from .de_bruijn import *
-from .path_finding import *
+from .de_bruijn import build_de_bruijn, get_roots, get_leaves, fast_trim
+from .path_finding import merge_bubbles
 from .utils import load_reads
-from itertools import chain
+import numpy as np
 
 
 def predict_haplotypes(
-        fq_1_filepath=None,
-        fq_2_filepath=None,
-        reads=None, de_bruijn_graph=None,
-        trim_depth=500,
-        ksize=61, cutoff=10):
+    filepaths=None, reads=None, graph=None, ksize=61, cutoff=10, window_size=3,
+):
 
-    if de_bruijn_graph is None:
+    if graph is None:
         if reads is None:
-            if (fq_1_filepath is None):
+            if filepaths is None:
                 raise ValueError("A fastq file must be passed.")
 
-            reads = load_reads(fq_1_filepath=fq_1_filepath, fq_2_filepath=fq_2_filepath)
+            reads = load_reads(filepaths=filepaths)
 
-        de_bruijn_graph = build_de_bruijn(reads, trim_depth=trim_depth, ksize=ksize, cutoff=cutoff)
+        graph = build_de_bruijn(reads, ksize=ksize, cutoff=cutoff)
         del reads
+        fast_trim(graph, forward=True)
+        fast_trim(graph, forward=False)
 
-    raise NotImplementedError
+    while True:
+        graph, cutoff = merge_bubbles(graph, cutoff, ksize, window_size=window_size)
 
-    return predicted_haplotypes, haplo_freqs
+        terminal_nodes = set(get_roots(graph) + get_leaves(graph))
+        if len(terminal_nodes) == len(graph.nodes):
+            break
 
+    haplotypes = [edge[1]["kmer"] for edge in graph.edges.items()]
+    freqs = np.array([edge[1]["weight"] for edge in graph.edges.items()])
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+    return haplotypes, freqs

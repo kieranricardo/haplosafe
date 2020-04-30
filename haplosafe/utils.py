@@ -1,23 +1,8 @@
-def complement(base):
-    if base == "A":
-        return "T"
-    elif base == "C":
-        return "G"
-    elif base == "T":
-        return "A"
-    elif base == "G":
-        return "C"
-    else:
-        raise ValueError(
-            "Base must be 'A', 'C', 'T', or 'G'. Recieved value {} instead.".format(
-                base
-            )
-        )
-
-
 def reverse_complement(read):
-    revcomp = "".join(map(complement, read[::-1].upper()))
-    return revcomp
+    read = read[::-1]
+    read = read.replace("A", "t").replace("C", "g")
+    read = read.replace("T", "a").replace("G", "c")
+    return read.upper()
 
 
 def parse_fasta(filepath):
@@ -53,14 +38,14 @@ def load_reads(filepaths):
         extension = filepath.split(".")[-1]
         if extension == "sam":
             reads.extend(parse_sam(filepath))
-        elif extension == "fas":
+        elif extension == "fas" or extension == "fq":
             reads.extend(parse_fasta(filepath))
         else:
             raise ValueError(
                 f"filepath: expected extension to one of '.sam', '.fas', found {extension}"
             )
 
-    # rev_reads = (map(reverse_complement, reads))
-    # reads.extend(rev_reads)
+    reads = [read for read in reads if 'N' not in read]
+    rev_comp_reads = [reverse_complement(read) for read in reads]
 
-    return reads
+    return reads + rev_comp_reads

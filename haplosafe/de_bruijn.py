@@ -64,7 +64,7 @@ def fast_trim(graph, forward=True):
         prev_nodes_lookup = graph.pred
     else:
         top_sorted_nodes = list(nx.topological_sort(graph))[-1::-1]
-        start_nodes = get_roots(graph)
+        start_nodes = get_leaves(graph)
         next_nodes_lookup = graph.pred
         prev_nodes_lookup = graph.succ
 
@@ -85,7 +85,7 @@ def fast_trim(graph, forward=True):
         max_node_path_len.append(max(node_dists.values()) - 1)
 
     max_path_len = max(max_node_path_len)
-    
+
     bad_root_chains = [
         [node]
         for node, mpl in zip(start_nodes, max_node_path_len)

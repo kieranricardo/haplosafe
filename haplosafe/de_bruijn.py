@@ -38,10 +38,8 @@ def build_de_bruijn(reads, ksize=61, cutoff=10):
 
 def count_kmers(reads, ksize=61):
 
-    kmer_counter = Counter(
-        read[i : (i + ksize)] for read in reads for i in range(len(read) + 1 - ksize)
-    )
-
+    kmer_generator = (read[i: (i+ksize)] for read in reads for i in range(len(read)+1-ksize))
+    kmer_counter = Counter(kmer_generator)
     return kmer_counter
 
 
@@ -87,7 +85,7 @@ def fast_trim(graph, forward=True):
         max_node_path_len.append(max(node_dists.values()) - 1)
 
     max_path_len = max(max_node_path_len)
-
+    
     bad_root_chains = [
         [node]
         for node, mpl in zip(start_nodes, max_node_path_len)

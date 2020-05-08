@@ -55,14 +55,14 @@ def find_source_sink_paths(DAG, start_nodes=None, max_len=np.inf):
     return paths
 
 
-def get_subgraph(graph, idx, max_idx, node_idx_pairs):
+def get_subgraph(graph, idx, max_idx, node_idx_pairs, idx_node_table):
     """
     Finds a suitable subgraph - one in which the roots and leaves are maximal antichains of the graph.
     """
 
     while True:
 
-        nodes = [node for i, node in node_idx_pairs if idx <= i < max_idx]
+        nodes = [node for i in range(idx, max_idx) for node in idx_node_table.get(i, [])]
 
         subgraph = graph.subgraph(nodes)
         leaves = get_leaves(subgraph)
@@ -142,13 +142,17 @@ def merge_bubbles(graph, cutoff, ksize, window_size=50):
     node_dists = max_dists(graph, forward=False)
     max_dist = max(dist for dist in node_dists.values())
     node_idx_pairs = [(max_dist - dist, node) for node, dist in node_dists.items()]
+    idx_node_table = dict((idx, []) for idx in set(idx_ for idx_, _ in node_idx_pairs))
+    for idx, node in node_idx_pairs:
+        idx_node_table[idx].append(node)
 
     idx = 0
     max_idx = max(idx for idx, _ in node_idx_pairs)
     while idx <= max_idx:
 
-        subgraph, idx = get_subgraph(graph, idx, idx + window_size, node_idx_pairs)
-        subgraph_check(graph, subgraph)
+        subgraph, idx = get_subgraph(
+            graph, idx, idx + window_size, node_idx_pairs, idx_node_table
+        )
 
         A, weights, all_paths = get_path_matrix(subgraph)
 

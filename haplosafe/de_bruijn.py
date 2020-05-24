@@ -1,5 +1,6 @@
 import networkx as nx
 from collections import Counter
+import numpy as np
 
 
 def build_de_bruijn(reads, ksize=61, cutoff=10):

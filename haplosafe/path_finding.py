@@ -150,9 +150,10 @@ def merge_bubbles(graph, cutoff, ksize, window_size=50):
     max_idx = max(idx for idx, _ in node_idx_pairs)
     while idx <= max_idx:
 
-        subgraph, idx = get_subgraph(
-            graph, idx, idx + window_size, node_idx_pairs, idx_node_table
-        )
+        subgraph_nodes = [node for i in range(idx, idx+window_size) for node in idx_node_table.get(i, [])]
+        subgraph_nodes.extend(parent for child in subgraph_nodes for parent in graph.pred[child])
+        subgraph = graph.subgraph(subgraph_nodes)
+        idx += window_size
 
         A, weights, all_paths = get_path_matrix(subgraph)
 

@@ -55,62 +55,52 @@ def find_source_sink_paths(DAG, start_nodes=None, max_len=np.inf):
     return paths
 
 
-def get_subgraph(graph, idx, max_idx, node_idx_pairs, idx_node_table):
-    """
-    Finds a suitable subgraph - one in which the roots and leaves are maximal antichains of the graph.
-    """
-
-    while True:
-
-        nodes = [node for i in range(idx, max_idx) for node in idx_node_table.get(i, [])]
-
-        subgraph = graph.subgraph(nodes)
-        leaves = get_leaves(subgraph)
-
-        nodes_to_add = set(
-            neigh
-            for node in subgraph.nodes
-            if node not in leaves
-            for neigh in graph.succ[node]
-            if neigh not in subgraph.nodes
-        )
-
-        if len(nodes_to_add) == 0:
-            nodes = nodes + [
-                neigh for node in get_roots(subgraph) for neigh in graph.pred[node]
-            ]
-            subgraph = graph.subgraph(nodes)
-            return subgraph, max_idx
-        else:
-            max_idx = max(i for i, node in node_idx_pairs if node in nodes_to_add) + 1
-
-
-def subgraph_check(graph, subgraph):
-
-    roots = get_roots(subgraph)
-
-    nodes_to_add = [
-        neigh
-        for node in subgraph.nodes
-        if node not in roots
-        for neigh in graph.pred[node]
-        if neigh not in subgraph.nodes
+def find_projected_paths(subgraph, graph):
+    start_nodes = get_roots(subgraph)
+    paths = [
+        [(parent_node, child_node, edge_idx)]
+        for parent_node in start_nodes
+        for child_node in subgraph[parent_node]
+        for edge_idx in subgraph[parent_node][child_node]
     ]
 
-    if len(nodes_to_add) != 0:
+    ii = 0
 
-        print(" ".join(str(len(graph.succ[node])) for node in nodes_to_add))
-        raise RuntimeError
+    while ii < len(paths):
+        path = paths[ii]
+
+        while True:
+
+            parent_node = path[-1][1]
+
+            edges = [
+                (parent_node, child_node, edge_idx)
+                for child_node in subgraph[parent_node]
+                for edge_idx in subgraph[parent_node][child_node]
+            ]
+
+            if len(edges) == 0:
+                break
+            elif len(subgraph[parent_node]) != len(graph[parent_node]):
+                paths.extend(path + [edge, ] for edge in edges)
+                break
+            else:
+                path.append(edges[0])
+                paths.extend(path[:-1] + [edge, ] for edge in edges[1:])
+
+        ii += 1
+
+    return paths
 
 
-def get_path_matrix(g):
+def get_path_matrix(subgraph, graph):
 
-    all_paths = find_source_sink_paths(g)
+    all_paths = find_projected_paths(subgraph, graph)
 
-    edge_list = list(g.edges)
+    edge_list = list(subgraph.edges)
     edge_list_lookup = dict(zip(edge_list, range(len(edge_list))))
 
-    weights = np.array(list(([e[1]["weight"] for e in g.edges.items()])))
+    weights = np.array(list(([e[1]["weight"] for e in subgraph.edges.items()])))
     A = np.zeros((len(edge_list), len(all_paths)))
 
     for i in range(len(all_paths)):
@@ -155,7 +145,7 @@ def merge_bubbles(graph, cutoff, ksize, window_size=50):
         subgraph = graph.subgraph(subgraph_nodes)
         idx += window_size
 
-        A, weights, all_paths = get_path_matrix(subgraph)
+        A, weights, all_paths = get_path_matrix(subgraph, graph)
 
         # note g can also be subgraph
         predicted_paths, predicted_haplotypes, pred_freqs, f_sum = solve_path_matrix(

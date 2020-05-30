@@ -17,44 +17,6 @@ def add_path(path, ksize, DG):
     return haplo
 
 
-def find_source_sink_paths(DAG, start_nodes=None, max_len=np.inf):
-
-    if start_nodes is None:
-        start_nodes = get_roots(DAG)
-
-    paths = [
-        [(parent_node, child_node, edge_idx)]
-        for parent_node in start_nodes
-        for child_node in DAG[parent_node]
-        for edge_idx in DAG[parent_node][child_node]
-    ]
-
-    ii = 0
-
-    while ii < len(paths):
-        path = paths[ii]
-
-        while len(path) < max_len:
-
-            parent_node = path[-1][1]
-
-            edges = [
-                (parent_node, child_node, edge_idx)
-                for child_node in DAG[parent_node]
-                for edge_idx in DAG[parent_node][child_node]
-            ]
-
-            if len(edges) == 0:
-                break
-            else:
-                path.append(edges[0])
-                paths.extend(path[:-1] + [edge,] for edge in edges[1:])
-
-        ii += 1
-
-    return paths
-
-
 def find_projected_paths(subgraph, graph):
     start_nodes = get_roots(subgraph)
     paths = [
@@ -124,10 +86,8 @@ def solve_path_matrix(A, weights, all_paths, cutoff, g, ksize):
     return predicted_paths, predicted_haplotypes, pred_freqs, f_sum
 
 
-def merge_bubbles(graph, cutoff, ksize, window_size=50):
-
-    edges = []
-    freq_sums = []
+def partition_graph(graph, window_size):
+    partitions = []
 
     node_dists = max_dists(graph, forward=False)
     max_dist = max(dist for dist in node_dists.values())
@@ -139,26 +99,41 @@ def merge_bubbles(graph, cutoff, ksize, window_size=50):
     idx = 0
     max_idx = max(idx for idx, _ in node_idx_pairs)
     while idx <= max_idx:
+        partition = [node for i in range(idx, idx + window_size) for
+                     node in idx_node_table.get(i, [])]
 
-        subgraph_nodes = [node for i in range(idx, idx+window_size) for node in idx_node_table.get(i, [])]
-        subgraph_nodes.extend(parent for child in subgraph_nodes for parent in graph.pred[child])
-        subgraph = graph.subgraph(subgraph_nodes)
+        parents = set(parent for child in partition for parent in graph.pred[child])
+        partition.extend(parents)
+        partitions.append(partition)
         idx += window_size
 
-        A, weights, all_paths = get_path_matrix(subgraph, graph)
+    return partitions
 
-        # note g can also be subgraph
-        predicted_paths, predicted_haplotypes, pred_freqs, f_sum = solve_path_matrix(
-            A, weights, all_paths, cutoff, graph, ksize=ksize
-        )
 
-        edges.extend(
-            (path[0][0], path[-1][1], {"weight": freq, "kmer": h})
-            for path, freq, h in zip(predicted_paths, pred_freqs, predicted_haplotypes)
-        )
+def resolve_paths(partition, graph, cutoff, ksize):
+    subgraph = graph.subgraph(partition)
+    A, weights, all_paths = get_path_matrix(subgraph, graph)
 
-        freq_sums.append(f_sum)
+    # note g can also be subgraph
+    predicted_paths, predicted_haplotypes, pred_freqs, f_sum = solve_path_matrix(
+        A, weights, all_paths, cutoff, subgraph, ksize=ksize
+    )
 
+    edges = [
+        (path[0][0], path[-1][1], {"weight": freq, "kmer": h})
+        for path, freq, h in zip(predicted_paths, pred_freqs, predicted_haplotypes)
+    ]
+
+    return edges, f_sum
+
+
+def merge_bubbles(graph, cutoff, ksize, window_size=50):
+
+    partitions = partition_graph(graph, window_size)
+    solutions = [resolve_paths(partition, graph, cutoff, ksize) for partition in partitions]
+
+    edges = [edge for edges, _ in solutions for edge in edges]
+    freq_sums = [f_sum for _, f_sum in solutions]
     new_graph = nx.MultiDiGraph()
 
     new_graph.add_edges_from(edges)
@@ -202,3 +177,43 @@ def max_dists(graph, forward=True):
                     )
 
     return node_dists
+
+
+# TODO: remove this
+def find_source_sink_paths(DAG, start_nodes=None, max_len=np.inf):
+
+    if start_nodes is None:
+        start_nodes = get_roots(DAG)
+
+    paths = [
+        [(parent_node, child_node, edge_idx)]
+        for parent_node in start_nodes
+        for child_node in DAG[parent_node]
+        for edge_idx in DAG[parent_node][child_node]
+    ]
+
+    ii = 0
+
+    while ii < len(paths):
+        path = paths[ii]
+
+        while len(path) < max_len:
+
+            parent_node = path[-1][1]
+
+            edges = [
+                (parent_node, child_node, edge_idx)
+                for child_node in DAG[parent_node]
+                for edge_idx in DAG[parent_node][child_node]
+            ]
+
+            if len(edges) == 0:
+                break
+            else:
+                path.append(edges[0])
+                paths.extend(path[:-1] + [edge,] for edge in edges[1:])
+
+        ii += 1
+
+    return paths
+

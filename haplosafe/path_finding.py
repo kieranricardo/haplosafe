@@ -81,7 +81,7 @@ def solve_path_matrix(A, weights, all_paths, cutoff, g, ksize):
     pred_freqs = fnnl[fnnl > cutoff]
 
     f_sum = pred_freqs.sum()
-    pred_freqs = pred_freqs / f_sum
+    # pred_freqs = pred_freqs / f_sum
 
     return predicted_paths, predicted_haplotypes, pred_freqs, f_sum
 
@@ -139,7 +139,7 @@ def merge_bubbles(graph, cutoff, ksize, window_size=50):
     new_graph.add_edges_from(edges)
     new_cutoff = cutoff / np.mean(freq_sums)
 
-    return new_graph, new_cutoff
+    return new_graph, cutoff
 
 
 def max_dists(graph, forward=True):

@@ -21,7 +21,7 @@ def predict_haplotypes(
         fast_trim(graph, forward=False)
 
     while True:
-        graph, cutoff = merge_bubbles(graph, cutoff, ksize, window_size=window_size)
+        graph = merge_bubbles(graph, cutoff, ksize, window_size=window_size)
 
         terminal_nodes = set(get_roots(graph) + get_leaves(graph))
         if len(terminal_nodes) == len(graph.nodes):

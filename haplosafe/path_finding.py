@@ -79,11 +79,7 @@ def solve_path_matrix(A, weights, all_paths, cutoff, g, ksize):
     predicted_haplotypes = [add_path(path, ksize, g) for path in predicted_paths]
 
     pred_freqs = fnnl[fnnl > cutoff]
-
-    f_sum = pred_freqs.sum()
-    # pred_freqs = pred_freqs / f_sum
-
-    return predicted_paths, predicted_haplotypes, pred_freqs, f_sum
+    return predicted_paths, predicted_haplotypes, pred_freqs
 
 
 def partition_graph(graph, window_size):
@@ -115,7 +111,7 @@ def resolve_paths(partition, graph, cutoff, ksize):
     A, weights, all_paths = get_path_matrix(subgraph, graph)
 
     # note g can also be subgraph
-    predicted_paths, predicted_haplotypes, pred_freqs, f_sum = solve_path_matrix(
+    predicted_paths, predicted_haplotypes, pred_freqs = solve_path_matrix(
         A, weights, all_paths, cutoff, subgraph, ksize=ksize
     )
 
@@ -124,7 +120,7 @@ def resolve_paths(partition, graph, cutoff, ksize):
         for path, freq, h in zip(predicted_paths, pred_freqs, predicted_haplotypes)
     ]
 
-    return edges, f_sum
+    return edges
 
 
 def merge_bubbles(graph, cutoff, ksize, window_size=50):
@@ -132,14 +128,12 @@ def merge_bubbles(graph, cutoff, ksize, window_size=50):
     partitions = partition_graph(graph, window_size)
     solutions = [resolve_paths(partition, graph, cutoff, ksize) for partition in partitions]
 
-    edges = [edge for edges, _ in solutions for edge in edges]
-    freq_sums = [f_sum for _, f_sum in solutions]
+    edges = [edge for edges in solutions for edge in edges]
     new_graph = nx.MultiDiGraph()
 
     new_graph.add_edges_from(edges)
-    new_cutoff = cutoff / np.mean(freq_sums)
 
-    return new_graph, cutoff
+    return new_graph
 
 
 def max_dists(graph, forward=True):
